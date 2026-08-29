@@ -23,13 +23,15 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Upload and analyze a technical specification or BIS document."""
+    """Upload and analyze a product photo, technical specification, or BIS document."""
     file_type = file.content_type or "application/octet-stream"
+    file_bytes = await file.read()
     doc = DocumentService.create_document_analysis(
         db=db,
         user=current_user,
         filename=file.filename or "uploaded_document",
         file_type=file_type,
+        file_bytes=file_bytes,
     )
     return doc
 

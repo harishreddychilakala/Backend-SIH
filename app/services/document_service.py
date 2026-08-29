@@ -9,6 +9,7 @@ from sqlalchemy import desc
 from fastapi import HTTPException, status
 from app.models.document import Document
 from app.models.user import User
+from app.services.vision_service import vision_service
 
 
 class DocumentService:
@@ -18,32 +19,23 @@ class DocumentService:
         user: User,
         filename: str,
         file_type: str,
+        file_bytes: Optional[bytes] = None,
     ) -> Document:
         """
-        Record uploaded document metadata and generate structured analysis.
+        Record uploaded document metadata and generate structured AI vision analysis.
         Enforces user isolation.
         """
-        analysis_result = {
-            "filename": filename,
-            "file_size": "2.4 MB",
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "summary": f"Analyzed specification document '{filename}'. Contains product technical parameters, material composition, and electrical specifications relevant for Indian Standards assessment.",
-            "extracted_requirements": [
-                {"category": "Electrical Safety", "text": "Operating voltage 220-240V AC, 50Hz with grounded conductor"},
-                {"category": "Thermal Protection", "text": "Auto cut-off thermal fuse rated for maximum 110°C"},
-                {"category": "Materials", "text": "Food-grade stainless steel interior (SS 304 compliant)"},
-                {"category": "Marking", "text": "BIS standard mark and rating label on base plate"},
-            ],
-            "compliance_gaps": [
-                {"severity": "high", "issue": "Missing official third-party dielectric test report (1250V)"},
-                {"severity": "medium", "issue": "User manual language does not currently include Hindi translation"},
-                {"severity": "low", "issue": "QCO batch traceability code placement needs review"},
-            ],
-            "referenced_standards": [
-                {"number": "IS 302-2-15", "title": "Safety of Household Appliances"},
-                {"number": "IS 1293:2019", "title": "Plugs and Socket Outlets"},
-            ],
-        }
+        if file_bytes and len(file_bytes) > 0:
+            analysis_result = vision_service.analyze_image_bytes(
+                image_bytes=file_bytes,
+                mime_type=file_type,
+                filename=filename,
+            )
+        else:
+            analysis_result = vision_service._fallback_analysis(filename)
+            analysis_result["filename"] = filename
+            analysis_result["file_size"] = "1.2 MB"
+            analysis_result["uploaded_at"] = datetime.now(timezone.utc).isoformat()
 
         doc = Document(
             user_id=user.id,

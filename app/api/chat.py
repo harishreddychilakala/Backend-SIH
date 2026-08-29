@@ -32,6 +32,8 @@ def create_new_chat(
         user=current_user,
         prompt=req.content,
         title=req.title,
+        language=req.language or "en",
+        image_data=req.image_data,
     )
     return {
         "id": conv.id,
@@ -59,5 +61,7 @@ def send_message(
         user=current_user,
         conversation_id=conversation_id,
         prompt=req.content,
+        language=req.language or "en",
+        image_data=req.image_data,
     )
     return ai_msg

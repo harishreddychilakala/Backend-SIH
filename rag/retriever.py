@@ -81,41 +81,19 @@ def _extract_is_number_from_query(query: str) -> Optional[str]:
     return None
 
 
-import psycopg2.pool
-
-_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+from app.db.database import engine
 
 def _get_connection():
-    """Get a connection from pool for sub-50ms vector query execution."""
-    global _pool
-    if _pool is None:
-        try:
-            _pool = psycopg2.pool.ThreadedConnectionPool(
-                minconn=1,
-                maxconn=10,
-                dsn=settings.database_url,
-                sslmode="require",
-                connect_timeout=15,
-            )
-        except Exception as e:
-            logger.warning(f"Connection pool init failed: {e}. Falling back to direct connection.")
-            return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=15)
-    
+    """Get a connection from the application's engine pool for fast vector query execution."""
     try:
-        return _pool.getconn()
-    except Exception:
-        return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=15)
+        return engine.raw_connection()
+    except Exception as e:
+        logger.warning(f"Engine connection failed: {e}. Falling back to direct connection.")
+        return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=10)
 
 
 def _release_connection(conn):
     """Return a connection back to the pool."""
-    global _pool
-    if _pool and conn:
-        try:
-            _pool.putconn(conn)
-            return
-        except Exception:
-            pass
     if conn:
         try:
             conn.close()
@@ -152,41 +130,29 @@ class RAGRetriever:
         Returns:
             List of chunk dicts.
         """
-        # 1. Determine domain/standard filters
-        if allow_filter_fallback:
-            auto_domain = domain_filter if domain_filter is not None else _detect_domain(query)
-            auto_std = standard_filter if standard_filter is not None else _extract_is_number_from_query(query)
-        else:
-            auto_domain = domain_filter
-            auto_std = standard_filter
-
-        # 2. Generate query embedding
+        # 1. Generate query embedding
         query_embedding = embedding_service.embed_query(query)
         if query_embedding is None:
             logger.error("Failed to generate query embedding — returning no results.")
             return []
 
-        # 3. Build parameterized SQL
+        # 2. Build parameterized SQL using direct HNSW vector index
         embedding_str = f"[{','.join(str(v) for v in query_embedding)}]"
 
-        where_clauses = ["embedding IS NOT NULL"]
         params: Dict[str, Any] = {
             "embedding": embedding_str,
             "limit": top_k,
             "min_sim": min_similarity,
         }
 
-        # Domain filter (case-insensitive partial match for robustness)
-        if auto_domain:
+        # If explicit domain or standard filter was passed programmatically, apply it
+        where_clauses = ["embedding IS NOT NULL"]
+        if domain_filter:
             where_clauses.append("LOWER(domain) LIKE LOWER(%(domain_like)s)")
-            params["domain_like"] = f"%{auto_domain}%"
-            logger.info(f"Applying domain filter: {auto_domain}")
-
-        # Standard number filter (partial match, e.g. "IS 302" matches "IS 302-2-15")
-        if auto_std:
+            params["domain_like"] = f"%{domain_filter}%"
+        if standard_filter:
             where_clauses.append("LOWER(standard_number) LIKE LOWER(%(std_like)s)")
-            params["std_like"] = f"%{auto_std.replace('IS ', '')}%"
-            logger.info(f"Applying standard filter: {auto_std}")
+            params["std_like"] = f"%{standard_filter.replace('IS ', '')}%"
 
         where_str = " AND ".join(where_clauses)
 
@@ -211,7 +177,7 @@ class RAGRetriever:
             LIMIT %(limit)s
         """
 
-        # 4. Execute search
+        # 3. Execute search
         rows = []
         conn = None
         try:
@@ -226,18 +192,6 @@ class RAGRetriever:
         finally:
             if conn:
                 _release_connection(conn)
-
-        # 5. If no results with filters, retry ONCE without any filters
-        if not rows and allow_filter_fallback and (auto_domain or auto_std):
-            logger.info(f"No chunks found with filter (domain={auto_domain}, std={auto_std}). Retrying pure semantic search...")
-            return self.search(
-                query=query,
-                top_k=top_k,
-                domain_filter=None,
-                standard_filter=None,
-                min_similarity=min_similarity * 0.75,
-                allow_filter_fallback=False,  # Don't recurse again!
-            )
 
         results = []
         for row in rows:

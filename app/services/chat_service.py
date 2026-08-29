@@ -15,50 +15,105 @@ from app.services.gemini_service import gemini_service
 from rag.retriever import rag_retriever
 from rag.generator import rag_generator
 from rag.bis_web_searcher import bis_web_searcher
+from rag.translation import detect_language, normalize_query
+import base64
 from datetime import datetime, timezone
+from app.services.vision_service import vision_service
 
 logger = logging.getLogger(__name__)
 
 
-def _generate_ai_response(prompt: str, history: Optional[list] = None) -> dict:
+def _extract_image_bytes(image_data: str) -> tuple[Optional[bytes], str]:
+    """Parse base64 data URL into raw bytes and mime type."""
+    if not image_data or not isinstance(image_data, str):
+        return None, "image/jpeg"
+    try:
+        if "," in image_data:
+            header, b64 = image_data.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "") or "image/jpeg"
+            return base64.b64decode(b64), mime
+        return base64.b64decode(image_data), "image/jpeg"
+    except Exception as e:
+        logger.warning(f"Failed to decode image_data: {e}")
+        return None, "image/jpeg"
+
+
+def _generate_ai_response(
+    prompt: str,
+    history: Optional[list] = None,
+    language: str = "en",
+    image_data: Optional[str] = None,
+) -> dict:
     """
-    Generate AI response using a 2-Tier RAG Architecture:
-    1. Tier 1: Local Neon pgvector Knowledge Base (5 core domains, 840 high-precision chunks).
-    2. Tier 2: Live BIS Government Portal Search (bis.gov.in / manakonline.in) when local chunks do not contain the answer.
-    3. Tier 3: Standard AIService fallback.
+    Generate AI response using ultra-fast Multilingual RAG + Multimodal Vision Architecture:
+    1. If image attachment provided, run Vision AI product identification
+    2. Detect language if auto/unspecified
+    3. Normalize non-English query to English for semantic retrieval
+    4. Retrieve top chunks from Neon pgvector
+    5. Generate grounded answer in user's target language
+    6. Direct High-Performance AIService fallback.
     """
+    # 1. Process image attachment if present
+    vision_context = ""
+    vision_details = None
+    if image_data:
+        img_bytes, mime_type = _extract_image_bytes(image_data)
+        if img_bytes:
+            try:
+                vision_details = vision_service.analyze_image_bytes(img_bytes, mime_type=mime_type)
+                prod_name = vision_details.get("product_name", "Identified Product")
+                std_num = vision_details.get("applicable_standard", {}).get("number", "Unknown Standard")
+                markings = ", ".join(vision_details.get("detected_markings", []))
+                vision_context = f"[PHOTO ANALYSIS: Identified Product: '{prod_name}', Applicable Standard: '{std_num}', Visible Markings: '{markings}']\n"
+            except Exception as ve:
+                logger.warning(f"Vision analysis in chat failed: {ve}")
+
+    augmented_prompt = f"{vision_context}{prompt}" if vision_context else prompt
+
+    # Auto-detect language if not explicitly provided or if default 'en' but text is Indian script
+    effective_lang = language
+    if not effective_lang or effective_lang == "en":
+        detected = detect_language(prompt)
+        if detected != "en":
+            effective_lang = detected
+
+    # Normalize query for vector search (translates to English if needed; instant if already English)
+    search_prompt = normalize_query(augmented_prompt, language=effective_lang) if effective_lang != "en" else augmented_prompt
+
     if getattr(settings, "rag_enabled", True):
         try:
-            # 1. First search local Neon pgvector document chunks (Primary RAG Source)
+            # Search local Neon pgvector document chunks using normalized query
             top_k = getattr(settings, "rag_top_k", 4)
-            chunks = rag_retriever.search(prompt, top_k=top_k)
+            chunks = rag_retriever.search(search_prompt, top_k=top_k)
             
-            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.40:
-                logger.info(f"⚡ Tier 1: Local PDF RAG matched {len(chunks)} chunks (top similarity: {chunks[0].get('similarity', 0):.3f}) for: '{prompt[:50]}'")
+            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.35:
+                logger.info(f"⚡ Tier 1: Local PDF RAG matched {len(chunks)} chunks (top similarity: {chunks[0].get('similarity', 0):.3f}) for: '{search_prompt[:50]}'")
                 structured_ai = rag_generator.generate(
-                    question=prompt,
+                    question=augmented_prompt,
                     retrieved_chunks=chunks,
                     conversation_history=history,
+                    target_language=effective_lang,
                 )
                 if structured_ai and structured_ai.get("verification_status") != "no_source_found":
-                    return structured_ai
-            
-            # 2. Tier 2 Fallback: If not in local PDFs, search official BIS Government Web Portal
-            logger.info(f"🌐 Tier 2: Searching official BIS Government Portal (bis.gov.in / manakonline.in) for: '{prompt[:60]}...'")
-            web_results = bis_web_searcher.search_bis_portal(prompt, max_results=3)
-            if web_results:
-                structured_ai = rag_generator.generate_from_bis_web(
-                    question=prompt,
-                    web_results=web_results,
-                    conversation_history=history,
-                )
-                if structured_ai:
+                    structured_ai["language"] = effective_lang
+                    if vision_details:
+                        structured_ai["vision_identified_product"] = vision_details.get("product_name")
                     return structured_ai
         except Exception as e:
-            logger.warning(f"⚠️ RAG / BIS Web search error: {e}. Falling back to default AIService.")
+            logger.warning(f"⚠️ RAG retrieval error: {e}. Falling back to default AIService.")
 
-    # Fallback to standard Groq/Gemini generation
-    return gemini_service.generate_response(prompt, history=history)
+    # Fast direct generation via Groq / Gemini
+    prompt_to_send = augmented_prompt
+    if effective_lang == "hi":
+        prompt_to_send = f"{augmented_prompt}\n\n(Please reply entirely in fluent Hindi / हिन्दी while preserving official IS standard numbers and technical terms in English)."
+    elif effective_lang == "te":
+        prompt_to_send = f"{augmented_prompt}\n\n(Please reply entirely in fluent Telugu / తెలుగు while preserving official IS standard numbers and technical terms in English)."
+
+    resp = gemini_service.generate_response(prompt_to_send, history=history)
+    resp["language"] = effective_lang
+    if vision_details:
+        resp["vision_identified_product"] = vision_details.get("product_name")
+    return resp
 
 
 class ChatService:
@@ -68,6 +123,8 @@ class ChatService:
         user: User,
         prompt: str,
         title: Optional[str] = None,
+        language: str = "en",
+        image_data: Optional[str] = None,
     ) -> Tuple[Conversation, Message, Message]:
         """
         Create a new conversation, record user message, call RAG / Gemini AI, record AI response.
@@ -98,8 +155,8 @@ class ChatService:
         db.commit()
         db.refresh(user_msg)
 
-        # Generate AI response (via RAG or AIService)
-        structured_ai = _generate_ai_response(prompt)
+        # Generate AI response (via Multilingual RAG + Vision AI)
+        structured_ai = _generate_ai_response(prompt, language=language, image_data=image_data)
         ai_summary = structured_ai.get("summary") or structured_ai.get("answer", "Analysis completed.")
 
         # Store AI message
@@ -127,6 +184,8 @@ class ChatService:
         user: User,
         conversation_id: str,
         prompt: str,
+        language: str = "en",
+        image_data: Optional[str] = None,
     ) -> Tuple[Message, Message]:
         """
         Add a message to an existing conversation, call RAG / Gemini AI, record response.
@@ -159,8 +218,8 @@ class ChatService:
         db.commit()
         db.refresh(user_msg)
 
-        # Generate AI response via RAG or AIService
-        structured_ai = _generate_ai_response(prompt, history=history)
+        # Generate AI response via Multilingual RAG or AIService
+        structured_ai = _generate_ai_response(prompt, history=history, language=language, image_data=image_data)
         ai_summary = structured_ai.get("summary") or structured_ai.get("answer", "Analysis completed.")
 
         ai_msg = Message(

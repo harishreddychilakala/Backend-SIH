@@ -48,7 +48,7 @@ class BISWebSearcher:
         results: List[Dict[str, Any]] = []
 
         try:
-            with httpx.Client(timeout=8.0, follow_redirects=True) as client:
+            with httpx.Client(timeout=2.0, follow_redirects=True) as client:
                 resp = client.post(
                     "https://html.duckduckgo.com/html/",
                     data={"q": search_term},

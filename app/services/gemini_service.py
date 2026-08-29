@@ -49,10 +49,14 @@ STRICT HONESTY & VERIFICATION RULES:
 - If no official standard applies, set "verification_status" to "no_source_found".
 - Prioritize official sources: bis.gov.in, manakonline.in, dpiit.gov.in, and The Gazette of India (egazette.gov.in). Never invent URLs.
 
+CONSUMER & BUYER PRECAUTIONS (MANDATORY):
+- At the end of every response, ALWAYS provide 2 to 3 practical, actionable safety/buyer precautions for the user/consumer (e.g. verifying the genuine ISI Mark and 7/8 digit CML Licence Number on the BIS Care Mobile App, checking product rating plate and batch codes, proper voltage/earthing installation, and avoiding non-certified fake goods).
+- In the markdown `answer`, present these clearly under the header: `### 🛡️ Consumer & Buyer Safety Precautions`.
+
 OUTPUT FORMAT:
 Always return valid, clean JSON with this exact schema:
 {
-  "answer": "Conversational, direct, human-friendly answer. If explaining a multi-step process, use clean markdown headers and separate bullet lines:\\n\\n### Step 1: Step Title\\nBrief step description.\\n- Sub-item 1\\n- Sub-item 2\\n\\nAlways use bold formatting like **IS 302-2-15** or **ISI Mark** for key standard names, schemes, and terms. Put every bullet point on its own newline with '- '.",
+  "answer": "Conversational, direct, human-friendly answer. If explaining a multi-step process, use clean markdown headers and separate bullet lines:\\n\\n### Step 1: Step Title\\nBrief step description.\\n- Sub-item 1\\n- Sub-item 2\\n\\n### 🛡️ Consumer & Buyer Safety Precautions\\n- Precaution 1 (e.g., Check genuine ISI Mark and verify CML number via BIS Care App)\\n- Precaution 2\\n- Precaution 3\\n\\nAlways use bold formatting like **IS 302-2-15** or **ISI Mark** for key standard names, schemes, and terms. Put every bullet point on its own newline with '- '.",
   "is_bis_related": true,
   "applicable_standard": {
     "reference": "e.g., IS 302-2-15 or IS 1786, or null if not applicable",
@@ -83,6 +87,11 @@ Always return valid, clean JSON with this exact schema:
   "laboratories": [
     "BIS Central / Regional Laboratories",
     "NABL-accredited & BIS-recognized testing facilities"
+  ],
+  "consumer_precautions": [
+    "Verify genuine ISI Mark and active CML number using the BIS Care App before purchase",
+    "Inspect manufacturer address, batch code, and statutory rating label on packaging",
+    "Follow mandatory installation, earthing, and safe usage guidelines"
   ],
   "sources": [
     {
@@ -183,9 +192,8 @@ class AIService:
 
         messages.append({"role": "user", "content": prompt})
 
-        # Try groq/compound first (best reasoning model on this account),
-        # fall back to qwen/qwen3.8-27b
-        for model in ["groq/compound", "qwen/qwen3.8-27b"]:
+        # Try standard high-performance ultra-fast Groq models (~1s)
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]:
             try:
                 completion = self._groq_client.chat.completions.create(
                     model=model,
@@ -220,25 +228,31 @@ class AIService:
         contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
 
         client = self._gemini_clients[self._gemini_index % len(self._gemini_clients)]
-        response = client.models.generate_content(
-            model="gemini-3.6-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=BIS_SYSTEM_PROMPT,
-                temperature=0.2,
-                top_p=0.9,
-                response_mime_type="application/json",
-            ),
-        )
-        text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        parsed = json.loads(text.strip())
-        return self._standardize_response(parsed)
+        for model in ["models/gemini-3.5-flash-lite", "models/gemini-3.6-flash", "models/gemini-3.7-flash", "models/gemini-3.5-flash"]:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=BIS_SYSTEM_PROMPT,
+                        temperature=0.2,
+                        top_p=0.9,
+                        response_mime_type="application/json",
+                    ),
+                )
+                text = response.text.strip()
+                if text.startswith("```json"):
+                    text = text[7:]
+                if text.startswith("```"):
+                    text = text[3:]
+                if text.endswith("```"):
+                    text = text[:-3]
+                parsed = json.loads(text.strip())
+                return self._standardize_response(parsed)
+            except Exception as e:
+                logger.warning(f"Gemini model {model} failed: {e}. Trying next model...")
+                continue
+        return None
 
     # ------------------------------------------------------------------
     # Helper & Standardizer

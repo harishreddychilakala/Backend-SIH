@@ -99,6 +99,7 @@ class RAGGenerator:
         question: str,
         retrieved_chunks: List[Dict[str, Any]],
         conversation_history: Optional[list] = None,
+        target_language: str = "en",
     ) -> Dict[str, Any]:
         """
         Generate a grounded answer from retrieved BIS chunks.
@@ -107,26 +108,27 @@ class RAGGenerator:
             question: The user's question.
             retrieved_chunks: Chunks from RAGRetriever.search().
             conversation_history: Optional prior messages for context.
+            target_language: Target output language code ('en', 'hi', 'te').
 
         Returns:
             Structured response dict compatible with the existing chat service schema.
         """
         sources = _format_sources(retrieved_chunks)
-        user_prompt = build_rag_prompt(question, retrieved_chunks)
+        user_prompt = build_rag_prompt(question, retrieved_chunks, target_language=target_language)
 
         parsed = None
 
-        # 1. Try Gemini (Primary for RAG grounded generation)
-        if self._gemini_client:
-            parsed = self._generate_with_gemini(user_prompt, conversation_history)
-
-        # 2. Fallback to Groq if Gemini fails
-        if parsed is None and self._groq_client:
+        # 1. Try Groq (Primary for ultra-fast <1s generation)
+        if self._groq_client:
             parsed = self._generate_with_groq(user_prompt, conversation_history)
+
+        # 2. Fallback to Gemini if Groq fails
+        if parsed is None and self._gemini_client:
+            parsed = self._generate_with_gemini(user_prompt, conversation_history)
 
         # 3. Absolute fallback if both fail
         if parsed is None:
-            logger.error("RAG generation: Both Gemini and Groq failed.")
+            logger.error("RAG generation: Both Groq and Gemini failed.")
             parsed = self._fallback_response(question, retrieved_chunks)
 
         # Inject sources into the response (override what LLM put there)
@@ -155,17 +157,17 @@ class RAGGenerator:
         user_prompt = build_web_grounded_prompt(question, web_results)
         parsed = None
 
-        # 1. Try Gemini with WEB_GROUNDED_SYSTEM_PROMPT
-        if self._gemini_client:
-            parsed = self._generate_with_gemini(
+        # 1. Try Groq first
+        if self._groq_client:
+            parsed = self._generate_with_groq(
                 user_prompt,
                 conversation_history,
                 system_prompt=WEB_GROUNDED_SYSTEM_PROMPT,
             )
 
-        # 2. Fallback to Groq
-        if parsed is None and self._groq_client:
-            parsed = self._generate_with_groq(
+        # 2. Fallback to Gemini
+        if parsed is None and self._gemini_client:
+            parsed = self._generate_with_gemini(
                 user_prompt,
                 conversation_history,
                 system_prompt=WEB_GROUNDED_SYSTEM_PROMPT,
@@ -201,7 +203,7 @@ class RAGGenerator:
 
         messages.append({"role": "user", "content": user_prompt})
 
-        for model in ["openai/gpt-oss-120b", "qwen/qwen3.8-27b", "openai/gpt-oss-20b"]:
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]:
             try:
                 completion = self._groq_client.chat.completions.create(
                     model=model,
@@ -235,7 +237,7 @@ class RAGGenerator:
                 contents.append(genai_types.Content(role=role, parts=[genai_types.Part(text=content)]))
         contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=user_prompt)]))
 
-        for model in ["models/gemini-3.6-flash", "models/gemini-3.7-flash", "gemini-2.5-pro"]:
+        for model in ["models/gemini-3.5-flash-lite", "models/gemini-3.6-flash", "models/gemini-3.7-flash", "models/gemini-3.5-flash"]:
             try:
                 response = self._gemini_client.models.generate_content(
                     model=model,

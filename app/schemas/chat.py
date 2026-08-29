@@ -34,17 +34,22 @@ class StructuredAIResponse(BaseModel):
     testing: Optional[str] = None
     certification: Optional[str] = None
     laboratories: Optional[List[str]] = []
+    consumer_precautions: Optional[List[str]] = []
     sources: Optional[List[SourceItem]] = []
     verification_status: str = "needs_verification"
 
 
 class SendMessageRequest(BaseModel):
     content: str = Field(..., min_length=1)
+    language: Optional[str] = Field(default="en", description="ISO 639-1 language code (en, hi, te)")
+    image_data: Optional[str] = Field(default=None, description="Optional base64 data URL for product photo / image attachment")
 
 
 class NewChatRequest(BaseModel):
     content: str = Field(..., min_length=1)
     title: Optional[str] = None
+    language: Optional[str] = Field(default="en", description="ISO 639-1 language code (en, hi, te)")
+    image_data: Optional[str] = Field(default=None, description="Optional base64 data URL for product photo / image attachment")
 
 
 class MessageResponse(BaseModel):
@@ -53,6 +58,7 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     structured_response: Optional[Dict[str, Any]] = None
+    language: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

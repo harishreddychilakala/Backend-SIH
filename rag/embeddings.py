@@ -113,10 +113,22 @@ class EmbeddingService:
 
     def embed_query(self, query: str) -> Optional[List[float]]:
         """
-        Embed a user query for retrieval.
+        Embed a user query for retrieval with memory caching.
         Same as embed_text for gemini-embedding-001.
         """
-        return self.embed_text(query)
+        if not hasattr(self, "_query_cache"):
+            self._query_cache = {}
+        
+        normalized = query.strip().lower()
+        if normalized in self._query_cache:
+            return self._query_cache[normalized]
+
+        vec = self.embed_text(query)
+        if vec:
+            if len(self._query_cache) > 1000:
+                self._query_cache.clear()
+            self._query_cache[normalized] = vec
+        return vec
 
     def embed_documents(self, texts: List[str]) -> List[Optional[List[float]]]:
         """
