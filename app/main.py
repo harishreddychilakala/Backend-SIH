@@ -19,18 +19,26 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS configuration
-origins = [
-    settings.frontend_url,
+# CORS configuration — support Vercel production/preview deployments & local development
+allowed_origins = [
+    "https://sahiai.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
 ]
 
+# Parse settings.frontend_url (supports comma-separated URLs and removes trailing slashes)
+if settings.frontend_url:
+    for url in settings.frontend_url.split(","):
+        cleaned = url.strip().rstrip("/")
+        if cleaned and cleaned not in allowed_origins:
+            allowed_origins.append(cleaned)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"^https:\/\/([a-zA-Z0-9_\-]+\.)*vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
