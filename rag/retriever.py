@@ -81,15 +81,46 @@ def _extract_is_number_from_query(query: str) -> Optional[str]:
     return None
 
 
+import psycopg2.pool
+
+_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+
 def _get_connection():
-    """Create a raw psycopg2 connection to Neon (needed for pgvector)."""
-    db_url = settings.database_url
-    conn = psycopg2.connect(
-        db_url,
-        sslmode="require",
-        connect_timeout=30,
-    )
-    return conn
+    """Get a connection from pool for sub-50ms vector query execution."""
+    global _pool
+    if _pool is None:
+        try:
+            _pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=1,
+                maxconn=10,
+                dsn=settings.database_url,
+                sslmode="require",
+                connect_timeout=15,
+            )
+        except Exception as e:
+            logger.warning(f"Connection pool init failed: {e}. Falling back to direct connection.")
+            return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=15)
+    
+    try:
+        return _pool.getconn()
+    except Exception:
+        return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=15)
+
+
+def _release_connection(conn):
+    """Return a connection back to the pool."""
+    global _pool
+    if _pool and conn:
+        try:
+            _pool.putconn(conn)
+            return
+        except Exception:
+            pass
+    if conn:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 class RAGRetriever:
@@ -194,10 +225,7 @@ class RAGRetriever:
             return []
         finally:
             if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+                _release_connection(conn)
 
         # 5. If no results with filters, retry ONCE without any filters
         if not rows and allow_filter_fallback and (auto_domain or auto_std):

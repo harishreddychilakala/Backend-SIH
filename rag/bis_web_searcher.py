@@ -57,12 +57,21 @@ class BISWebSearcher:
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, "html.parser")
                     for r in soup.select(".result"):
+                        # Skip ads or sponsored links
+                        if "result--ad" in r.get("class", []):
+                            continue
+
                         title_elem = r.select_one(".result__title")
                         snippet_elem = r.select_one(".result__snippet")
                         
                         if title_elem and snippet_elem:
                             title = title_elem.get_text(strip=True)
                             snippet = snippet_elem.get_text(strip=True)
+                            
+                            # Filter out ad text snippets
+                            if "AdViewing ads" in snippet or "ad clicks" in snippet.lower():
+                                continue
+
                             link = title_elem.find("a")
                             raw_href = link["href"] if link and "href" in link.attrs else ""
 
@@ -72,6 +81,10 @@ class BISWebSearcher:
                                 match = re.search(r'uddg=([^&]+)', raw_href)
                                 if match:
                                     actual_url = urllib.parse.unquote(match.group(1))
+
+                            # Only keep genuine BIS official and Government portals
+                            if not any(d in actual_url.lower() for d in ["bis.gov.in", "manakonline.in", "standards.bis", "services.bis", "egazette.gov.in"]):
+                                continue
 
                             # Clean up title if it repeats
                             title = title.replace("\n", " ").strip()
@@ -91,7 +104,7 @@ class BISWebSearcher:
                                 "url": actual_url,
                                 "domain": domain,
                                 "source_type": "Official BIS Government Portal",
-                                "relevance": f"Live official information from {domain}",
+                                "relevance": f"Official Portal reference from {domain}",
                             })
 
                             if len(results) >= max_results:

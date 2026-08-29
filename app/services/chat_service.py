@@ -29,12 +29,12 @@ def _generate_ai_response(prompt: str, history: Optional[list] = None) -> dict:
     """
     if getattr(settings, "rag_enabled", True):
         try:
-            # 1. First search local Neon pgvector document chunks
-            top_k = getattr(settings, "rag_top_k", 5)
+            # 1. First search local Neon pgvector document chunks (Primary RAG Source)
+            top_k = getattr(settings, "rag_top_k", 4)
             chunks = rag_retriever.search(prompt, top_k=top_k)
             
-            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.72:
-                logger.info(f"⚡ Tier 1: RAG Retrieved {len(chunks)} relevant local chunks (top sim: {chunks[0].get('similarity', 0):.3f}).")
+            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.40:
+                logger.info(f"⚡ Tier 1: Local PDF RAG matched {len(chunks)} chunks (top similarity: {chunks[0].get('similarity', 0):.3f}) for: '{prompt[:50]}'")
                 structured_ai = rag_generator.generate(
                     question=prompt,
                     retrieved_chunks=chunks,
@@ -45,7 +45,7 @@ def _generate_ai_response(prompt: str, history: Optional[list] = None) -> dict:
             
             # 2. Tier 2 Fallback: If not in local PDFs, search official BIS Government Web Portal
             logger.info(f"🌐 Tier 2: Searching official BIS Government Portal (bis.gov.in / manakonline.in) for: '{prompt[:60]}...'")
-            web_results = bis_web_searcher.search_bis_portal(prompt, max_results=4)
+            web_results = bis_web_searcher.search_bis_portal(prompt, max_results=3)
             if web_results:
                 structured_ai = rag_generator.generate_from_bis_web(
                     question=prompt,
