@@ -37,6 +37,8 @@ def _format_sources(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if chunk_id in seen_ids:
             continue
         seen_ids.add(chunk_id)
+        meta = chunk.get("metadata") or {}
+        is_user_doc = meta.get("is_user_upload", False) or "User Upload" in (chunk.get("domain") or "")
         sources.append({
             "document": chunk.get("document_name", ""),
             "domain": chunk.get("domain", ""),
@@ -44,6 +46,8 @@ def _format_sources(chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "section": chunk.get("section"),
             "page": chunk.get("page_number"),
             "similarity": round(chunk.get("similarity", 0), 4),
+            "source_type": "User Uploaded Document" if is_user_doc else "Official BIS Publication",
+            "is_user_upload": is_user_doc,
             "chunk_id": chunk_id,
         })
     return sources
