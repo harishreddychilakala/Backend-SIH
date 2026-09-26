@@ -78,15 +78,15 @@ class RAGGenerator:
         self._init()
 
     def _init(self):
-        # Groq client
+        # Groq client with fast timeout
         if _GROQ_AVAILABLE and settings.is_groq_configured:
             try:
-                self._groq_client = Groq(api_key=settings.groq_api_key)
-                logger.info("RAG Generator: Groq client initialized.")
+                self._groq_client = Groq(api_key=settings.groq_api_key, timeout=7.0)
+                logger.info("RAG Generator: Groq client initialized with 7s timeout.")
             except Exception as e:
                 logger.warning(f"RAG Generator: Groq init failed: {e}")
 
-        # Gemini client (for embeddings we already use it; reuse first key)
+        # Gemini client
         if _GENAI_AVAILABLE and settings.is_gemini_configured:
             try:
                 self._gemini_client = genai.Client(api_key=settings.gemini_api_keys[0])
@@ -118,17 +118,17 @@ class RAGGenerator:
 
         parsed = None
 
-        # 1. Try Groq (Primary for ultra-fast <1s generation)
-        if self._groq_client:
-            parsed = self._generate_with_groq(user_prompt, conversation_history)
-
-        # 2. Fallback to Gemini if Groq fails
-        if parsed is None and self._gemini_client:
+        # 1. Try Gemini (Primary for large document context — processes multi-chunk RAG in ~2-3s)
+        if self._gemini_client:
             parsed = self._generate_with_gemini(user_prompt, conversation_history)
+
+        # 2. Fallback to Groq if Gemini fails
+        if parsed is None and self._groq_client:
+            parsed = self._generate_with_groq(user_prompt, conversation_history)
 
         # 3. Absolute fallback if both fail
         if parsed is None:
-            logger.error("RAG generation: Both Groq and Gemini failed.")
+            logger.error("RAG generation: Both Gemini and Groq failed.")
             parsed = self._fallback_response(question, retrieved_chunks)
 
         # Inject sources into the response (override what LLM put there)
@@ -203,22 +203,26 @@ class RAGGenerator:
 
         messages.append({"role": "user", "content": user_prompt})
 
-        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]:
+        # Try fast Groq models with safe token budget to avoid 1000 OTPM rate limits
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]:
             try:
                 completion = self._groq_client.chat.completions.create(
                     model=model,
                     messages=messages,
                     temperature=0.15,
-                    max_tokens=3000,
+                    max_tokens=950,
                     response_format={"type": "json_object"},
                 )
                 content = completion.choices[0].message.content.strip()
                 parsed = _parse_llm_json(content)
                 if parsed:
-                    logger.info(f"RAG generation OK via Groq model: {model}")
+                    logger.info(f"⚡ RAG generation OK via Groq model: {model}")
                     return parsed
             except Exception as e:
                 logger.warning(f"Groq RAG model {model} failed: {e}")
+                if "rate_limit" in str(e).lower() or "429" in str(e):
+                    logger.info("⚡ Groq RAG rate limited — immediately switching to Gemini fallback.")
+                    break
                 continue
         return None
 
@@ -228,6 +232,8 @@ class RAGGenerator:
         history: Optional[list],
         system_prompt: str = RAG_SYSTEM_PROMPT,
     ) -> Optional[Dict[str, Any]]:
+        if not self._gemini_client:
+            return None
         contents = []
         if history:
             for msg in history[-6:]:
@@ -237,7 +243,7 @@ class RAGGenerator:
                 contents.append(genai_types.Content(role=role, parts=[genai_types.Part(text=content)]))
         contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=user_prompt)]))
 
-        for model in ["models/gemini-3.5-flash-lite", "models/gemini-3.6-flash", "models/gemini-3.7-flash", "models/gemini-3.5-flash"]:
+        for model in ["models/gemini-3.1-flash-lite", "models/gemini-3.8-flash", "models/gemini-3.7-flash", "models/gemini-3.6-flash"]:
             try:
                 response = self._gemini_client.models.generate_content(
                     model=model,
@@ -247,11 +253,12 @@ class RAGGenerator:
                         temperature=0.15,
                         top_p=0.9,
                         response_mime_type="application/json",
+                        max_output_tokens=1500,
                     ),
                 )
                 parsed = _parse_llm_json(response.text)
                 if parsed:
-                    logger.info(f"RAG generation OK via Gemini model: {model}.")
+                    logger.info(f"⚡ RAG generation OK via Gemini model: {model}.")
                     return parsed
             except Exception as e:
                 logger.warning(f"Gemini RAG model {model} failed: {e}")

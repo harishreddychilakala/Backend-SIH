@@ -81,19 +81,13 @@ def _extract_is_number_from_query(query: str) -> Optional[str]:
     return None
 
 
-from app.db.database import engine
-
 def _get_connection():
-    """Get a connection from the application's engine pool for fast vector query execution."""
-    try:
-        return engine.raw_connection()
-    except Exception as e:
-        logger.warning(f"Engine connection failed: {e}. Falling back to direct connection.")
-        return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=10)
+    """Get a direct PostgreSQL connection configured with SSL for Neon pgvector."""
+    return psycopg2.connect(settings.database_url, sslmode="require", connect_timeout=10)
 
 
 def _release_connection(conn):
-    """Return a connection back to the pool."""
+    """Safely close and release connection."""
     if conn:
         try:
             conn.close()

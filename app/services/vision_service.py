@@ -144,7 +144,7 @@ class VisionService:
             for key in settings.gemini_api_keys:
                 try:
                     client = genai.Client(api_key=key)
-                    for model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.7-flash"]:
+                    for model in ["models/gemini-3.1-flash-lite", "models/gemini-3.8-flash", "models/gemini-3.7-flash", "models/gemini-3.6-flash"]:
                         try:
                             response = client.models.generate_content(
                                 model=model,

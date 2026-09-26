@@ -94,7 +94,7 @@ def _generate_ai_response(
                     conversation_history=history,
                     target_language=effective_lang,
                 )
-                if structured_ai and structured_ai.get("verification_status") != "no_source_found":
+                if structured_ai and (structured_ai.get("answer") or structured_ai.get("summary")):
                     structured_ai["language"] = effective_lang
                     if vision_details:
                         structured_ai["vision_identified_product"] = vision_details.get("product_name")

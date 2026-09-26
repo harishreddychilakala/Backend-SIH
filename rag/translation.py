@@ -78,7 +78,7 @@ def _do_normalize(query: str, source_lang: str) -> str:
         client = Groq(api_key=settings.groq_api_key)
         lang_name = get_language_name(source_lang)
 
-        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]:
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]:
             try:
                 response = client.chat.completions.create(
                     model=model,

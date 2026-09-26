@@ -43,8 +43,8 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/logout")
-def logout(current_user: User = Depends(get_current_user)):
-    """Log out current user (client invalidates token)."""
+def logout():
+    """Log out current user (stateless JWT client invalidates token)."""
     return {"message": "Successfully logged out."}
 
 

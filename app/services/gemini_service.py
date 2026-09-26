@@ -121,11 +121,11 @@ class AIService:
         self._gemini_index: int = 0
         self._gemini_exhausted: list[bool] = []
 
-        # Initialize Groq
+        # Initialize Groq with fast 7s timeout
         if GROQ_AVAILABLE and settings.is_groq_configured:
             try:
-                self._groq_client = Groq(api_key=settings.groq_api_key)
-                logger.info("⚡ Groq Llama 3.3 70B AI client initialized successfully!")
+                self._groq_client = Groq(api_key=settings.groq_api_key, timeout=7.0)
+                logger.info("⚡ Groq AI client initialized successfully!")
             except Exception as e:
                 logger.error(f"Failed to initialize Groq client: {e}")
 
@@ -150,33 +150,33 @@ class AIService:
     def generate_response(self, prompt: str, history: Optional[list] = None) -> Dict[str, Any]:
         """
         Generate structured BIS intelligence response.
-        Uses Groq (Llama 3.3 70B) first for speed and accuracy.
-        Falls back to Gemini if Groq fails.
+        Uses high-speed Gemini (gemini-3.1-flash-lite / gemini-3.8-flash) for ~1.5s accurate structured responses.
+        Falls back to Groq if needed.
         """
         if not self.is_configured:
             return self._get_unconfigured_response(prompt)
 
-        # 1. Try Groq (Primary)
-        if self._groq_client:
-            try:
-                result = self._generate_with_groq(prompt, history)
-                if result:
-                    logger.info("⚡ Response generated successfully using Groq Llama 3.3 70B.")
-                    return result
-            except Exception as e:
-                logger.warning(f"Groq generation failed: {e}. Trying fallback...")
-
-        # 2. Try Gemini (Fallback)
+        # 1. Try Gemini (Primary for ultra-fast, rich JSON responses ~1.5s)
         if self._gemini_clients:
             try:
                 result = self._generate_with_gemini(prompt, history)
                 if result:
-                    logger.info("Response generated successfully using Gemini.")
+                    logger.info("⚡ Response generated successfully using Gemini.")
                     return result
             except Exception as e:
-                logger.error(f"Gemini fallback failed: {e}")
+                logger.warning(f"Gemini generation failed: {e}. Trying fallback...")
 
-        return self._get_fallback_response(prompt, "Both Groq and Gemini generation failed.")
+        # 2. Try Groq (Fallback)
+        if self._groq_client:
+            try:
+                result = self._generate_with_groq(prompt, history)
+                if result:
+                    logger.info("⚡ Response generated successfully using Groq.")
+                    return result
+            except Exception as e:
+                logger.error(f"Groq fallback failed: {e}")
+
+        return self._get_fallback_response(prompt, "AI response generation failed.")
 
     # ------------------------------------------------------------------
     # Groq Implementation
@@ -187,19 +187,20 @@ class AIService:
 
         if history:
             for msg in history[-8:]:
-                role = "user" if msg.role == "user" else "assistant"
-                messages.append({"role": role, "content": msg.content})
+                role = "user" if getattr(msg, "role", msg.get("role", "user")) == "user" else "assistant"
+                content = getattr(msg, "content", msg.get("content", ""))
+                messages.append({"role": role, "content": content})
 
         messages.append({"role": "user", "content": prompt})
 
-        # Try standard high-performance ultra-fast Groq models (~1s)
-        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"]:
+        # Try ultra-fast Groq models (<1s) with safe token budget (<=950 to avoid free-tier 1000 OTPM rate limit)
+        for model in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b"]:
             try:
                 completion = self._groq_client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    temperature=0.2,
-                    max_tokens=2048,
+                    temperature=0.15,
+                    max_tokens=950,
                     response_format={"type": "json_object"},
                 )
                 content = completion.choices[0].message.content.strip()
@@ -207,7 +208,10 @@ class AIService:
                 logger.info(f"⚡ Groq response OK using model: {model}")
                 return self._standardize_response(parsed)
             except Exception as e:
-                logger.warning(f"Groq model {model} failed: {e}. Trying next model...")
+                logger.warning(f"Groq model {model} failed: {e}")
+                if "rate_limit" in str(e).lower() or "429" in str(e):
+                    logger.info("⚡ Groq rate limited — immediately switching to Gemini fallback.")
+                    break
                 continue
 
         return None
@@ -223,21 +227,25 @@ class AIService:
         contents = []
         if history:
             for msg in history[-8:]:
-                role = "user" if msg.role == "user" else "model"
-                contents.append(types.Content(role=role, parts=[types.Part(text=msg.content)]))
+                role_raw = getattr(msg, "role", msg.get("role", "user"))
+                role = "user" if role_raw == "user" else "model"
+                content = getattr(msg, "content", msg.get("content", ""))
+                contents.append(types.Content(role=role, parts=[types.Part(text=content)]))
         contents.append(types.Content(role="user", parts=[types.Part(text=prompt)]))
 
         client = self._gemini_clients[self._gemini_index % len(self._gemini_clients)]
-        for model in ["models/gemini-3.5-flash-lite", "models/gemini-3.6-flash", "models/gemini-3.7-flash", "models/gemini-3.5-flash"]:
+        # Fastest, most reliable Gemini models in priority order
+        for model in ["models/gemini-3.1-flash-lite", "models/gemini-3.8-flash", "models/gemini-3.7-flash", "models/gemini-3.6-flash"]:
             try:
                 response = client.models.generate_content(
                     model=model,
                     contents=contents,
                     config=types.GenerateContentConfig(
                         system_instruction=BIS_SYSTEM_PROMPT,
-                        temperature=0.2,
+                        temperature=0.15,
                         top_p=0.9,
                         response_mime_type="application/json",
+                        max_output_tokens=1500,
                     ),
                 )
                 text = response.text.strip()
@@ -248,6 +256,7 @@ class AIService:
                 if text.endswith("```"):
                     text = text[:-3]
                 parsed = json.loads(text.strip())
+                logger.info(f"⚡ Gemini response OK using model: {model}")
                 return self._standardize_response(parsed)
             except Exception as e:
                 logger.warning(f"Gemini model {model} failed: {e}. Trying next model...")

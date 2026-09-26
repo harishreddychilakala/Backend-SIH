@@ -29,11 +29,12 @@ class StandardSearchResponse(BaseModel):
 
 
 class SaveStandardRequest(BaseModel):
-    standard_id: str
-    standard_reference: str
-    title: str
-    category: Optional[str] = None
-    status: Optional[str] = None
+    standard_id: Optional[str] = None
+    standard_reference: Optional[str] = None
+    title: Optional[str] = None
+    standard_title: Optional[str] = None
+    category: Optional[str] = "General"
+    status: Optional[str] = "Active"
 
 
 class SavedStandardResponse(BaseModel):

@@ -433,9 +433,12 @@ class StandardsService:
     @staticmethod
     def save_standard(db: Session, user: User, req: SaveStandardRequest) -> SavedStandard:
         """Save/bookmark an Indian Standard for authenticated user."""
+        std_ref = req.standard_reference or req.standard_id or "IS Standard"
+        std_title = req.title or req.standard_title or f"Indian Standard {std_ref}"
+
         existing = db.query(SavedStandard).filter(
             SavedStandard.user_id == user.id,
-            SavedStandard.standard_reference == req.standard_reference,
+            (SavedStandard.standard_reference == std_ref) | (SavedStandard.id == std_ref),
         ).first()
 
         if existing:
@@ -443,10 +446,10 @@ class StandardsService:
 
         saved = SavedStandard(
             user_id=user.id,
-            standard_reference=req.standard_reference,
-            title=req.title,
-            category=req.category,
-            status=req.status,
+            standard_reference=std_ref,
+            title=std_title,
+            category=req.category or "General",
+            status=req.status or "Active",
         )
         db.add(saved)
         db.commit()
@@ -460,6 +463,13 @@ class StandardsService:
             SavedStandard.user_id == user.id,
             (SavedStandard.standard_reference == standard_id) | (SavedStandard.id == standard_id),
         ).first()
+
+        if not saved:
+            # Check case-insensitive match
+            saved = db.query(SavedStandard).filter(
+                SavedStandard.user_id == user.id,
+                SavedStandard.standard_reference.ilike(f"%{standard_id}%"),
+            ).first()
 
         if not saved:
             raise HTTPException(
