@@ -24,6 +24,21 @@ class ComplianceArea(BaseModel):
     items: List[ComplianceAreaItem]
 
 
+class ComplianceChecklistItem(BaseModel):
+    id: str
+    clause: Optional[str] = None
+    text: str
+    category: str = "Technical"
+    mandatory: bool = True
+    status: str = "pending"  # met / pending / needs_test
+
+
+class ComplianceSource(BaseModel):
+    title: str
+    url: Optional[str] = None
+    type: Optional[str] = "Official"
+
+
 class ComplianceResult(BaseModel):
     product: str
     category: Optional[str] = None
@@ -34,10 +49,15 @@ class ComplianceResult(BaseModel):
     status: str
     qco_details: Optional[str] = None
     breakdown: List[ComplianceArea]
+    checklist: Optional[List[ComplianceChecklistItem]] = None
+    confirmed_requirements: Optional[List[str]] = None
+    unverified_requirements: Optional[List[str]] = None
     testing_clauses: Optional[List[str]] = None
     required_documents: Optional[List[str]] = None
     certification_steps: Optional[List[str]] = None
     next_steps: List[str]
+    legal_disclaimer: Optional[str] = None
+    sources: Optional[List[ComplianceSource]] = None
     verification_status: str = "needs_verification"
 
 

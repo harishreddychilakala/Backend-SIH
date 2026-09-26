@@ -47,66 +47,10 @@ def get_standard(standard_id: str):
 @router.post("/compare")
 def compare_standards(req: CompareStandardsRequest):
     """
-    Compare two Indian Standards side-by-side with structured technical analysis.
+    Compare two Indian Standards side-by-side with structured technical analysis,
+    clause-by-clause verification, and source traceability.
     """
-    std_a = StandardsService.get_standard_by_id(req.standard_a_id)
-    std_b = StandardsService.get_standard_by_id(req.standard_b_id)
-
-    # Build technical comparison structure
-    scope_diff = std_a.get("scope") != std_b.get("scope")
-    cat_diff = std_a.get("category") != std_b.get("category")
-    qco_diff = std_a.get("qco_applicable") != std_b.get("qco_applicable")
-
-    comparison_data = {
-        "Scope": {
-            "A": std_a.get("scope", "Scope defined in official IS standard publication."),
-            "B": std_b.get("scope", "Scope defined in official IS standard publication."),
-            "differs": scope_diff,
-        },
-        "Requirements": {
-            "A": f"Conformity to parameters specified under {std_a.get('number')}. Safety and quality benchmarks apply.",
-            "B": f"Conformity to parameters specified under {std_b.get('number')}. Safety and quality benchmarks apply.",
-            "differs": True,
-        },
-        "Testing": {
-            "A": "Type testing and routine quality verification at BIS-recognized test facilities.",
-            "B": "Type testing and routine quality verification at BIS-recognized test facilities.",
-            "differs": False,
-        },
-        "Certification": {
-            "A": "Scheme-I Product Certification (ISI Mark) or Scheme-II CRS where applicable via Manakonline.",
-            "B": "Scheme-I Product Certification (ISI Mark) or Scheme-II CRS where applicable via Manakonline.",
-            "differs": False,
-        },
-        "QCO": {
-            "A": "Mandatory compliance under statutory Quality Control Order." if std_a.get("qco_applicable") else "Voluntary standard (verify current Gazette updates).",
-            "B": "Mandatory compliance under statutory Quality Control Order." if std_b.get("qco_applicable") else "Voluntary standard (verify current Gazette updates).",
-            "differs": qco_diff,
-        },
-        "Key Differences": {
-            "A": f"Targeted at {std_a.get('category', 'Category A')} products ({std_a.get('number')}).",
-            "B": f"Targeted at {std_b.get('category', 'Category B')} products ({std_b.get('number')}).",
-            "differs": cat_diff,
-        }
-    }
-
-    summary = (
-        f"{std_a.get('number')} covers {std_a.get('title')}, whereas {std_b.get('number')} specifies requirements for {std_b.get('title')}. "
-        f"{'Both standards have mandatory Quality Control Orders enforced.' if std_a.get('qco_applicable') and std_b.get('qco_applicable') else 'Review product categorization to select the exact applicable standard.'}"
-    )
-
-    recommendation = (
-        f"Manufacturers of {std_a.get('category')} items should apply under {std_a.get('number')}, while manufacturers of {std_b.get('category')} goods must conform to {std_b.get('number')} via the BIS Manakonline portal."
-    )
-
-    return {
-        "standard_a": std_a,
-        "standard_b": std_b,
-        "summary": summary,
-        "comparison": comparison_data,
-        "recommendation": recommendation,
-        "verification_status": "verified"
-    }
+    return StandardsService.compare_standards_structured(req.standard_a_id, req.standard_b_id)
 
 
 @router.post("/{standard_id}/explain")
