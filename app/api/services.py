@@ -83,19 +83,20 @@ BIS_SERVICES_DIRECTORY = [
     },
     {
         "id": "srv-005",
-        "name": "Hallmarking Scheme (Gold & Silver)",
+        "name": "Hallmarking Scheme (Gold & Silver Jewellery & HUID)",
         "category": "Hallmarking",
-        "description": "Accurate determination and official recording of the proportionate content of precious metal in gold and silver jewellery / artefacts.",
-        "whoNeedsIt": "Jewellers and Assaying & Hallmarking Centres (AHC) across mandatory hallmarking districts in India.",
-        "keyProducts": ["Gold Jewellery (14K, 18K, 20K, 22K, 23K, 24K)", "Silver Artefacts & Bullion"],
+        "description": "Accurate determination and official laser marking of the proportionate content of precious metals in gold (IS 1417) and silver (IS 2112) jewellery and artefacts with 6-digit HUID.",
+        "whoNeedsIt": "Consumers verifying gold/silver purity, registered jewellers, and BIS-recognized Assaying & Hallmarking Centres (AHC) across mandatory hallmarking districts in India.",
+        "keyProducts": ["Gold Jewellery (24K, 23K, 22K916, 20K, 18K750, 14K585)", "Silver Artefacts & Bullion (990, 970, 925 Sterling)", "HUID 6-digit laser verification on BIS Care App"],
         "process": [
-            "Jeweller registers online via Manakonline portal",
-            "Articles submitted to BIS-recognized Assaying & Hallmarking Centre",
-            "Assay testing (XRF / Fire Assay) to verify karat purity",
-            "Laser engraving of HUID (Hallmark Unique Identification) 6-digit alphanumeric code"
+            "Jeweller registers online via BIS Manakonline portal (manakonline.in)",
+            "Jewellery items submitted to BIS-recognized Assaying & Hallmarking Centre (AHC)",
+            "Assay testing (XRF / Fire Assay cupellation) to verify exact karat purity",
+            "Laser engraving of mandatory 3-sign hallmark: BIS Logo + Purity Grade (e.g. 22K916) + 6-digit alphanumeric HUID",
+            "Consumers verify jewellery authenticity and jeweller details using 'Verify HUID' on BIS Care App"
         ],
-        "timeframe": "Instant registration for jewellers; same-day hallmarking at AHC",
-        "official_url": "https://www.manakonline.in",
+        "timeframe": "Instant online registration for jewellers; same-day hallmarking & HUID engraving at AHC",
+        "official_url": "https://www.bis.gov.in/hallmarking/",
         "portal_name": "BIS Hallmarking Portal",
         "verification_status": "verified"
     },
@@ -115,6 +116,25 @@ BIS_SERVICES_DIRECTORY = [
         "timeframe": "30 to 45 days",
         "official_url": "https://www.bis.gov.in/management-system-certification/",
         "portal_name": "BIS MSCD Division",
+        "verification_status": "verified"
+    },
+    {
+        "id": "srv-007",
+        "name": "Consumer Verification & Grievance Redressal (BIS Care)",
+        "category": "Consumer Services",
+        "description": "Official consumer protection service to verify ISI marks, CM/L licences, CRS R-Numbers, HUID, and lodge grievances against fake/sub-standard goods.",
+        "whoNeedsIt": "All Indian citizens, consumers, and buyers purchasing BIS-regulated goods, electronics, packaged water, appliances, and gold jewellery.",
+        "keyProducts": ["BIS Care Mobile App (Android/iOS)", "Verify Licence (CM/L)", "Verify CRS (R-Number)", "Verify HUID", "Grievance Portal (1915 NCH / e-Daakhil)"],
+        "process": [
+            "Download official BIS Care App from Google Play Store or Apple App Store",
+            "Use 'Verify Licence Details' to check 7/8 digit CM/L number on ISI-marked products",
+            "Use 'Verify HUID' to check 6-digit alphanumeric code on hallmarked gold jewellery",
+            "If product is sub-standard or has fake ISI mark, file instant complaint with photo proof in BIS Care App",
+            "Escalate to National Consumer Helpline (toll-free 1915) or e-Daakhil consumer court portal if unresolved"
+        ],
+        "timeframe": "Instant real-time verification; 15-30 days for grievance resolution & BIS enforcement inspection",
+        "official_url": "https://www.bis.gov.in/consumer-affairs/",
+        "portal_name": "BIS Consumer Affairs & Care Portal",
         "verification_status": "verified"
     }
 ]

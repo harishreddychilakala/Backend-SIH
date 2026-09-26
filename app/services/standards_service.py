@@ -264,6 +264,116 @@ CURATED_STANDARDS_DB = [
         "sources": [
             {"title": "Toys (Quality Control) Order", "url": "https://dpiit.gov.in", "type": "Official Gazette"}
         ]
+    },
+    {
+        "id": "is-1417-2016",
+        "number": "IS 1417:2016",
+        "title": "Gold and Gold Alloys, Jewellery/Artefacts — Fineness and Marking (Hallmarking of Gold)",
+        "category": "Precious Metals & Hallmarking",
+        "subcategory": "Gold Jewellery",
+        "status": "Active",
+        "last_updated": "2023-04-01",
+        "qco_applicable": True,
+        "bis_mark_required": True,
+        "scope": "Prescribes requirements for fineness/purity and marking (hallmarking) of gold bullion, gold jewellery, and gold artefacts in India.",
+        "overview": "Defines recognized gold purity grades (24K995, 23K958, 22K916, 20K833, 18K750, 14K585) and mandates the 3-sign hallmark system including the 6-digit alphanumeric HUID (Hallmark Unique Identification).",
+        "requirements": [
+            {"id": "req-01", "text": "Mandatory 3-Sign Hallmark: BIS Triangular Logo, Karat & Fineness mark (e.g. 22K916), and 6-digit HUID code", "category": "Marking", "mandatory": True},
+            {"id": "req-02", "text": "Purity conformity verification: 24K (995), 23K (958), 22K (916), 20K (833), 18K (750), 14K (585) with zero negative tolerance", "category": "Assaying", "mandatory": True},
+            {"id": "req-03", "text": "Traceable 6-character alphanumeric HUID laser inscribed at BIS-recognized Assaying & Hallmarking Centre (AHC)", "category": "Traceability", "mandatory": True},
+            {"id": "req-04", "text": "Solder alloy must match base metal purity without lowering the assayed carat value", "category": "Metallurgical", "mandatory": True}
+        ],
+        "testing": {
+            "duration": "Same-day to 24 hours at AHC",
+            "labs": 1400,
+            "keyTests": ["Fire Assay Cupellation method (destructive reference)", "X-Ray Fluorescence (XRF) Spectrometry (non-destructive screening)", "Touchstone touch test", "Laser micro-inscription verification"]
+        },
+        "certification": {
+            "scheme": "Hallmarking Scheme (Jeweller Registration & AHC Recognition)",
+            "process": [
+                "Jeweller registers online on BIS Manakonline portal",
+                "Articles delivered to BIS-recognized Assaying & Hallmarking Centre (AHC)",
+                "Sample drawing & assay testing for purity determination",
+                "Laser inscription of 3-sign hallmark and 6-digit HUID",
+                "Consumer verification via 'Verify HUID' on BIS Care App"
+            ]
+        },
+        "sources": [
+            {"title": "Bureau of Indian Standards Hallmarking Portal", "url": "https://www.bis.gov.in/hallmarking/", "type": "Official"},
+            {"title": "Hallmarking of Gold Jewellery and Gold Artefacts Order", "url": "https://egazette.gov.in", "type": "Official Gazette"}
+        ]
+    },
+    {
+        "id": "is-2112-2014",
+        "number": "IS 2112:2014",
+        "title": "Silver and Silver Alloys, Jewellery/Artefacts — Fineness and Marking (Hallmarking of Silver)",
+        "category": "Precious Metals & Hallmarking",
+        "subcategory": "Silver Artefacts & Jewellery",
+        "status": "Active",
+        "last_updated": "2023-01-15",
+        "qco_applicable": False,
+        "bis_mark_required": True,
+        "scope": "Specifies fineness and hallmarking requirements for silver bullion, silver jewellery, and silver decorative artefacts.",
+        "overview": "Recognizes standard silver grades 990 (99.0%), 970 (97.0%), 925 (Sterling Silver - 92.5%), 900 (90.0%), 835 (83.5%), and 800 (80.0%). Mandates BIS mark, fineness, and HUID code.",
+        "requirements": [
+            {"id": "req-01", "text": "Marking with BIS Triangular Logo, Fineness mark (e.g. 925 for Sterling Silver), and 6-digit alphanumeric HUID", "category": "Marking", "mandatory": True},
+            {"id": "req-02", "text": "Conformity to silver fineness grades: 990, 970, 925, 900, 835, 800", "category": "Assaying", "mandatory": True},
+            {"id": "req-03", "text": "Sampling and assaying by Potentiometric Volumetric Titration / ICP-OES", "category": "Chemical", "mandatory": True}
+        ],
+        "testing": {
+            "duration": "1–2 days at recognized AHC",
+            "labs": 850,
+            "keyTests": ["Potentiometric titration method", "XRF spectrometry analysis", "Gravimetric precipitation", "Laser hallmarking verification"]
+        },
+        "certification": {
+            "scheme": "Silver Hallmarking Scheme via Manakonline",
+            "process": [
+                "Online jeweller registration on Manakonline",
+                "Assaying at recognized Assaying and Hallmarking Centre",
+                "Application of official silver hallmark and HUID",
+                "Verification on BIS Care App"
+            ]
+        },
+        "sources": [
+            {"title": "BIS Silver Hallmarking Guidelines", "url": "https://www.bis.gov.in/hallmarking/", "type": "Official"}
+        ]
+    },
+    {
+        "id": "is-14543-2016",
+        "number": "IS 14543:2016",
+        "title": "Packaged Drinking Water (Other than Packaged Natural Mineral Water)",
+        "category": "Food & Beverages (Consumer Safety)",
+        "subcategory": "Packaged Water",
+        "status": "Active",
+        "last_updated": "2023-06-01",
+        "qco_applicable": True,
+        "bis_mark_required": True,
+        "scope": "Prescribes requirements for physical, chemical, and microbiological limits for packaged drinking water filled in sealed containers/bottles/pouches for direct human consumption.",
+        "overview": "Mandatory Scheme-I ISI Mark certification enforced by FSSAI & Ministry of Consumer Affairs. Prohibits sale of packaged drinking water without genuine ISI mark and active CM/L licence number.",
+        "requirements": [
+            {"id": "req-01", "text": "Mandatory ISI Mark and CM/L license number displayed clearly on packaging", "category": "Compliance", "mandatory": True},
+            {"id": "req-02", "text": "Microbiological safety: Zero coliform, E. coli, Salmonella, Pseudomonas aeruginosa, and yeast/mould", "category": "Microbiological", "mandatory": True},
+            {"id": "req-03", "text": "Total Dissolved Solids (TDS) between 75 to 500 mg/L; pH between 6.5 to 8.5", "category": "Chemical", "mandatory": True},
+            {"id": "req-04", "text": "Toxic heavy metals (Lead <= 0.01 mg/L, Arsenic <= 0.01 mg/L, Mercury <= 0.001 mg/L)", "category": "Chemical", "mandatory": True},
+            {"id": "req-05", "text": "Pesticide residues limit not exceeding 0.0001 mg/L individually", "category": "Chemical", "mandatory": True}
+        ],
+        "testing": {
+            "duration": "10–14 days",
+            "labs": 85,
+            "keyTests": ["Complete microbiological culture test", "Pesticide residue GC-MS/LC-MS analysis", "Heavy metal ICP-MS analysis", "Sensory, turbidity, and mineral balance analysis"]
+        },
+        "certification": {
+            "scheme": "Scheme I — Product Certification (ISI Mark)",
+            "process": [
+                "Mandatory statutory certification under FSSAI & BIS Act",
+                "Full plant hygiene audit, in-house laboratory setup verification",
+                "Independent water sample collection by BIS officials",
+                "Grant of CM/L licence and continuous batch surveillance"
+            ]
+        },
+        "sources": [
+            {"title": "FSSAI & BIS Mandatory Certification Order for Packaged Water", "url": "https://www.fssai.gov.in", "type": "Official Gazette"}
+        ]
     }
 ]
 

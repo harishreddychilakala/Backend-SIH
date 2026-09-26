@@ -47,6 +47,16 @@ DOMAIN_KEYWORDS: Dict[str, List[str]] = {
         "cotton", "polyester", "wool", "jute", "synthetic", "dye", "weaving",
         "knitting", "footwear", "shoe", "belt", "bag",
     ],
+    "Precious Metals & Hallmarking": [
+        "gold", "silver", "jewellery", "jewelry", "hallmark", "hallmarked", "hallmarking",
+        "huid", "carat", "karat", "fineness", "916", "750", "585", "assaying", "ahc",
+        "bullion", "ornament", "is 1417", "is 2112", "is 15820",
+    ],
+    "Consumer Rights & Verification": [
+        "bis care", "verify", "verification", "cml", "r-number", "fake", "counterfeit",
+        "falsely labelled", "substandard", "complaint", "grievance", "consumer", "isi mark",
+        "e-daakhil", "helpline", "1915",
+    ],
 }
 
 IS_NUMBER_RE = re.compile(r'\bIS\s*(?:No\.?\s*)?(\d+(?:[:\-]\d+(?:[:\-]\d+)?)?)\b', re.IGNORECASE)
