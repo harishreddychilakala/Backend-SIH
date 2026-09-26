@@ -38,6 +38,28 @@ def _extract_image_bytes(image_data: str) -> tuple[Optional[bytes], str]:
         return None, "image/jpeg"
 
 
+def _is_uninformative_rag_answer(answer_text: str) -> bool:
+    """Check if the RAG model responded that documents do not contain the answer."""
+    if not answer_text or len(answer_text.strip()) < 20:
+        return True
+    lower = answer_text.lower()
+    phrases = [
+        "do not contain information",
+        "does not contain information",
+        "not present in the retrieved",
+        "not found in the retrieved",
+        "provided retrieved documents do not contain",
+        "available documents focus on",
+        "could not find this information in the indexed",
+        "no relevant bis document chunks",
+        "retrieved documents do not mention",
+        "not mentioned in the retrieved",
+        "neither the retrieved documents",
+        "retrieved context does not",
+    ]
+    return any(p in lower for p in phrases)
+
+
 def _generate_ai_response(
     prompt: str,
     history: Optional[list] = None,
@@ -45,13 +67,13 @@ def _generate_ai_response(
     image_data: Optional[str] = None,
 ) -> dict:
     """
-    Generate AI response using ultra-fast Multilingual RAG + Multimodal Vision Architecture:
+    Generate AI response using ultra-fast Multilingual RAG + Online BIS Portal Search:
     1. If image attachment provided, run Vision AI product identification
     2. Detect language if auto/unspecified
     3. Normalize non-English query to English for semantic retrieval
-    4. Retrieve top chunks from Neon pgvector
-    5. Generate grounded answer in user's target language
-    6. Direct High-Performance AIService fallback.
+    4. Tier 1: Retrieve top chunks from Neon pgvector
+    5. Tier 2: If local chunks do not contain the specific answer, search live official BIS portals (bis.gov.in / manakonline.in)
+    6. Direct High-Performance AIService with grounded BIS intelligence.
     """
     # 1. Process image attachment if present
     vision_context = ""
@@ -77,16 +99,17 @@ def _generate_ai_response(
         if detected != "en":
             effective_lang = detected
 
-    # Normalize query for vector search (translates to English if needed; instant if already English)
+    # Normalize query for search (translates to English if needed; instant if already English)
     search_prompt = normalize_query(augmented_prompt, language=effective_lang) if effective_lang != "en" else augmented_prompt
 
+    # Tier 1: Try local PDF RAG if enabled
     if getattr(settings, "rag_enabled", True):
         try:
-            # Search local Neon pgvector document chunks using normalized query
             top_k = getattr(settings, "rag_top_k", 4)
             chunks = rag_retriever.search(search_prompt, top_k=top_k)
             
-            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.35:
+            # Use local PDF RAG if similarity is solid (>= 0.42)
+            if chunks and len(chunks) > 0 and chunks[0].get("similarity", 0) >= 0.42:
                 logger.info(f"⚡ Tier 1: Local PDF RAG matched {len(chunks)} chunks (top similarity: {chunks[0].get('similarity', 0):.3f}) for: '{search_prompt[:50]}'")
                 structured_ai = rag_generator.generate(
                     question=augmented_prompt,
@@ -94,15 +117,28 @@ def _generate_ai_response(
                     conversation_history=history,
                     target_language=effective_lang,
                 )
-                if structured_ai and (structured_ai.get("answer") or structured_ai.get("summary")):
-                    structured_ai["language"] = effective_lang
-                    if vision_details:
-                        structured_ai["vision_identified_product"] = vision_details.get("product_name")
-                    return structured_ai
+                if structured_ai and structured_ai.get("answer"):
+                    ans = structured_ai.get("answer", "")
+                    if not _is_uninformative_rag_answer(ans):
+                        structured_ai["language"] = effective_lang
+                        if vision_details:
+                            structured_ai["vision_identified_product"] = vision_details.get("product_name")
+                        return structured_ai
+                    else:
+                        logger.info("ℹ️ Local PDF RAG chunks lacked answer — triggering online BIS portal search.")
         except Exception as e:
-            logger.warning(f"⚠️ RAG retrieval error: {e}. Falling back to default AIService.")
+            logger.warning(f"⚠️ RAG retrieval error: {e}. Falling back to online BIS search.")
 
-    # Fast direct generation via Groq / Gemini
+    # Tier 2: Search online on official BIS Government Portals (bis.gov.in, manakonline.in)
+    web_results = []
+    try:
+        web_results = bis_web_searcher.search_bis_portal(search_prompt, max_results=4)
+        if web_results:
+            logger.info(f"🌐 Tier 2: Fetched {len(web_results)} live official BIS portal references for: '{search_prompt[:50]}'")
+    except Exception as we:
+        logger.warning(f"Live BIS search error: {we}")
+
+    # Tier 3: Direct AI Generation grounded with BIS intelligence & official portal sources
     prompt_to_send = augmented_prompt
     if effective_lang == "hi":
         prompt_to_send = f"{augmented_prompt}\n\n(Please reply entirely in fluent Hindi / हिन्दी while preserving official IS standard numbers and technical terms in English)."
@@ -111,6 +147,15 @@ def _generate_ai_response(
 
     resp = gemini_service.generate_response(prompt_to_send, history=history)
     resp["language"] = effective_lang
+
+    # If web results were found, ensure official BIS source links are attached
+    if web_results:
+        existing_sources = resp.get("sources") or []
+        # Keep web results if existing sources are generic or empty
+        if not existing_sources or len(existing_sources) <= 1:
+            resp["sources"] = web_results
+            resp["source_type"] = "Official BIS Government Portals"
+
     if vision_details:
         resp["vision_identified_product"] = vision_details.get("product_name")
     return resp
