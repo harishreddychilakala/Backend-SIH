@@ -13,7 +13,7 @@ def hash_password(plain_password: str) -> str:
     """Hash a plain-text password using bcrypt (max 72 bytes)."""
     # Truncate to 72 bytes if needed per bcrypt specification
     pwd_bytes = plain_password.encode('utf-8')[:72]
-    salt = bcrypt.gensalt()
+    salt = bcrypt.gensalt(rounds=10)
     hashed = bcrypt.hashpw(pwd_bytes, salt)
     return hashed.decode('utf-8')
 

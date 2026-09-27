@@ -2,14 +2,37 @@
 BIS SmartAI — FastAPI Application Entry Point
 Problem Statement: SIH26107
 """
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from app.core.config import settings
+from app.db.database import engine
 from app.api import (
     auth, users, chat, conversations,
     standards, saved, compliance, documents, feedback,
     services, laboratories
 )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Asynchronously warm up the connection pool and database instance
+    def warmup_db():
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        except Exception:
+            pass
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(None, warmup_db)
+    except Exception:
+        pass
+    yield
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -17,6 +40,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS configuration — support Vercel production/preview deployments & local development

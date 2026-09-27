@@ -25,19 +25,26 @@ def get_engine():
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-    connect_args = {"connect_timeout": 30}
+    connect_args = {
+        "connect_timeout": 15,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
     # Neon/Cloud DBs require SSL; add sslmode if not already in URL query parameters
     if "sslmode=" not in db_url:
         connect_args["sslmode"] = "require"
 
     engine = create_engine(
         db_url,
-        pool_size=5,
-        max_overflow=10,
+        pool_size=10,
+        max_overflow=20,
+        pool_timeout=30,
         pool_pre_ping=True,         # Verify connection health before use
-        pool_recycle=300,           # Recycle connections every 5 minutes
+        pool_recycle=1800,          # Keep connections alive and reuse for 30 minutes
         connect_args=connect_args,
-        echo=settings.debug,        # Log SQL in dev mode
+        echo=False,                 # Avoid verbose SQL I/O in production/dev
     )
     return engine
 

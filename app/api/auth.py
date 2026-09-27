@@ -9,7 +9,7 @@ GET  /api/auth/me
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, cache_authenticated_user, invalidate_user_cache
 from app.models.user import User
 from app.schemas.auth import (
     RegisterRequest, LoginRequest, ForgotPasswordRequest,
@@ -24,6 +24,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     """Register a new user account."""
     user, token = AuthService.register_user(db, req)
+    cache_authenticated_user(user)
     return {
         "user": user,
         "access_token": token,
@@ -35,6 +36,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user with email and password."""
     user, token = AuthService.authenticate_user(db, req)
+    cache_authenticated_user(user)
     return {
         "user": user,
         "access_token": token,
